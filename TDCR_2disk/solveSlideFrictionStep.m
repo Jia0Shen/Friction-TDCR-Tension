@@ -1,4 +1,6 @@
 function [updateState] = solveSlideFrictionStep(tdcr, prevState, T_curr)
+% This code implements a comparison to the LCP-based method: 
+% it only considers the sliding friction.
 
     % Kmat = getKmat(tdcr.kb,tdcr.kb,tdcr.n);
     inv_K = tdcr.inv_K;   %diag(1 ./ diag(tdcr.Kmat));

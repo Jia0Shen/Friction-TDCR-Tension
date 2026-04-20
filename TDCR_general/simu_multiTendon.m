@@ -4,7 +4,7 @@ tdcr.r = 50;          % disk radii
 tdcr.l = 100;          % distance between disks
 tdcr.kb = 20e4;
 
-nu = 0.3;
+nu = 0.3;   % Poisson's ratio
 tdcr.kt = tdcr.kb / (1+nu);
 
 % discretized points for backbone
@@ -24,37 +24,21 @@ tdcr.mu = 0.5 * ones(1,tdcr.m*tdcr.n);       % COF
 angleBase = (0:tdcr.m-1)/tdcr.m*2*pi;
 tdcr.P0 = [tdcr.r*cos(angleBase); tdcr.r*sin(angleBase); zeros(1, tdcr.m)];
 
-% copy another frictinoless tdcr
+% copy another frictinoless tdcr for comparison
 tdcr_fl = tdcr;
 tdcr_fl.mu = 0.0 * ones(1,tdcr.m*tdcr.n);
 
 % input a T0 list
-Tmax = 15;
+Tmax = 1;
 T_mid = Tmax/2;
 
-% 1. linear tension
-
-% T0_list = geneLineTraj(Tmax, 2, 500);
-NN = 200;
-% T0_list = [zeros(1,NN), linspace(0, Tmax, NN);
-%            linspace(0, Tmax, NN), Tmax*ones(1,NN)];
-% T0_list = [linspace(0, Tmax, NN), Tmax*ones(1,NN), linspace(Tmax,0,NN), zeros(1,NN); 
-%            zeros(1,NN), linspace(0, Tmax, NN), Tmax*ones(1,NN), linspace(Tmax,0,NN)];
-% T0_list = square_spiral(Tmax, 2, 0.2)';
-dT = 2e-2;
+% creat actuation
+dT = 2e-2;   % actuation step length
 T0_list = LinearInterplNdim([0, 1/2*Tmax, 1/2*Tmax; ...
                              0, 0, Tmax], dT);
-% T0_list = LinearInterplNdim([0, 3/4*Tmax, 3/4*Tmax, 0; ...
-%                              0, 0, 1/4*Tmax, 0], dT);
-% T0_list = linspace(0, Tmax, 1000);
+
+% time frame (0-10 s)
 t = linspace(0, 10, size(T0_list,2));
-
-% 2. circle - hysteresis
-
-% t = linspace(0, 10, 200);
-% fh = 1;
-% tau = 0.4;
-% T0_list = T_mid*exp(-tau*t).*sin(2*pi*t*fh-pi/2)+T_mid;
 
 n_steps = size(T0_list, 2);
 
@@ -81,25 +65,19 @@ prevState_fl = iniState;
 traj_state = {};
 traj_stateFl = {};
 
+% whether to use a frictionless model for comparison
 frictionlessFlag = true;
 
 tic 
 for iter = 1:n_steps
-
-    % T0_i = T0_list(iter);
-    % T0_All_i = zeros(1,tdcr.m);
-    % T0_All_i(1) = T0_i;
-
     T0_All_i = T0_list(:, iter)';
 
-    % T0_All_i = T0_list(:,iter);
-
-    % frictionpart
+    % LCP-based model
     [updateState] = stepUpdate_t(tdcr, prevState, T0_All_i);
     prevState = updateState;
     traj_state{end+1} = updateState;
 
-    % frictionless part
+    % frictionless model
     if frictionlessFlag
         [updateState_fl] = stepUpdate_t(tdcr_fl, prevState_fl, T0_All_i);
         prevState_fl = updateState_fl;
@@ -110,6 +88,7 @@ end
 
 time = toc;
 
+% record CPU time 
 disp('Avg CPU time per step is ' + string(time/n_steps))
 
 %% plot 3D / video
@@ -140,7 +119,7 @@ xlim([-300 300])
 view(25, 10)
 
 if vid_flag1
-    vid1 = VideoWriter('out\vid_3disk2tendon.mp4', 'MPEG-4');
+    vid1 = VideoWriter('out\vid_generalTDCR.mp4', 'MPEG-4');
     vid1.FrameRate = min(round(n_steps/10), 110);
     open(vid1);
 end
@@ -170,10 +149,6 @@ if vid_flag1
     close(vid1);
 end
 
-% grid off
-% box off
-% axis off
-
 %% 2D plots
 
 angle_list = ones(1,n_steps);
@@ -184,9 +159,6 @@ beta_listFL = ones(tdcr.m, n_steps);
 for i = 1:n_steps
     iState1 = traj_state{i};
     iState_fl = traj_stateFl{i};
-
-    % xSol_i = iState.x_sol;
-    % zSol_i = iState.z_sol;
 
     % END angle
     R_endI = iState1.TT(1:3,1:3,end);
@@ -202,38 +174,16 @@ for i = 1:n_steps
 
 end
 
-% figure()
-% hold on
-% plot(t,T0_list)
-% plot(t,T1_list)
-% plot(t,T2_list)
-% legend('T0', 'T1', 'T2')
-% 
-% figure()
-% hold on
-% plot(t, v0_list)
-% plot(t, v1_list)
-% legend('v0', 'v1')
-
-figure()
-hold on
-plot(t, T0_list(1,:))
-plot(t, T0_list(2,:))
-
 figure()
 hold on
 plot(t, angle_list/pi*180, 'r')
 plot(t, angle_listFl/pi*180, 'b')
+xlim([0 1.1*max(t)])
+ylim([0 1.2*max(angle_listFl/pi*180)])
 xlabel('t (s)')
-ylabel('\theta (Deg)')
+ylabel('Bend Angle (Deg)')
+% if you want to save a video
+makeVid2D(gca, '..\out\vid_2D_Bend', 50)
 
-figure()
-hold on
-plot(- diff(T0_list, 1), angle_list/pi*180, 'r')
-plot(- diff(T0_list, 1), angle_listFl/pi*180, 'b')
-xlabel('T0_1 - T0_2 (N)')
-ylabel('\theta (Deg)')
-xlim([-42 42])
-ylim([0 180])
-makeVid2D(gca, 'outs\T-drive-outs\vid_T_Bend', 50)
+% legend('LCP-based model', 'Frictionless model')
 
