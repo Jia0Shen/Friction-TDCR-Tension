@@ -1,0 +1,50 @@
+function y = NonLinearConstrainSlide(tdcr, prev_state, T0, x)
+% current state (x): [l0,l1,theta0,theta1,F1x,F1y,F1z,F2x,F2y,F2z,T1,T2]'
+% z = [beta1', betat2', lambda1, lambda2]'
+
+p0 = [tdcr.r, 0, 0]';
+mu = tdcr.mu;
+
+l0 = x(1);
+l1 = x(2);
+theta0 = x(3);
+theta1 = x(4);
+F1 = x(5:7);
+F2 = x(8:10);
+T1 = x(11);
+T2 = x(12);
+
+ds = tdcr.s(end) - tdcr.s(end-1);
+
+P1P2_prev = [prev_state.P1; prev_state.P2];
+u_prev = reshape(prev_state.u, [], 1);
+J = [prev_state.J1; prev_state.J2];
+
+D = [1 -1];
+inv_K = tdcr.inv_K;  % diag(1 ./ diag(tdcr.Kmat));
+
+P1P2 = [p0 + l0*[sin(theta0); 0; cos(theta0)];
+     p0 + l0*[sin(theta0); 0; cos(theta0)] + l1*[sin(theta0+theta1); 0; cos(theta0+theta1)]];
+
+pickxz = @(xx) xx([1,3,4,6],:);
+
+if T0 > prev_state.T0
+    % pull down. Assume v0, v1 > 0.
+    % Then T1 = T0 exp(-mu*theta0);  T2 = T1 exp(-mu*theta1)
+    frictionConstraint = [T1 - T0*exp(-mu(1)*theta0);
+        T2 - T1*exp(-mu(2)*theta1)];
+else
+    % release back
+    % Then T1 = T0 exp(mu*theta0);  T2 = T1 exp(mu*theta1)
+    frictionConstraint = [T1 - T0*exp(mu(1)*theta0);
+        T2 - T1*exp(mu(2)*theta1)];
+end
+
+
+y = [pickxz( P1P2 - P1P2_prev - J*inv_K*J'/ds*[F1;F2] + J*u_prev );
+     F1 + T1*[sin(theta0); 0; cos(theta0)] - T2*[sin(theta0+theta1); 0; cos(theta0+theta1)];
+     F2 + T2*[sin(theta0+theta1); 0; cos(theta0+theta1)];
+     frictionConstraint];
+
+
+end
